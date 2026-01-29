@@ -4,8 +4,10 @@ import com.example.demo.dto.order.RequestOrderDto;
 import com.example.demo.dto.order.ResponseConvertOrderDto;
 import com.example.demo.dto.product.ProductDto;
 import com.example.demo.exception.DataValidationException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -13,8 +15,16 @@ import java.util.List;
 
 @Service
 public class ConvertedOrderServiceImpl implements ConvertedOrderService {
-    private final String ORDER_PREFIX = "WH-";
-    private final int MAX_SHIP_DAY = 30;
+    private static final String ORDER_PREFIX = "WH-";
+
+    @Value("${convertedorder.max-ship-days:30}")
+    private int maxShipDay;
+
+    private final Clock clock;
+
+    public ConvertedOrderServiceImpl(Clock clock) {
+        this.clock = clock;
+    }
 
     @Override
     public ResponseConvertOrderDto convertOrder(RequestOrderDto orderDto) {
@@ -49,20 +59,19 @@ public class ConvertedOrderServiceImpl implements ConvertedOrderService {
     }
 
     private List<ProductDto> prepareProductList(RequestOrderDto orderDto) {
-        String[] productItems = orderDto.items().split(",");
+        String items = orderDto.items();
 
-        if (productItems.length < 1) {
-            throw new DataValidationException("items должен содержать хотя бы один товар");
-        }
+        String[] productItems = items.split(",");
 
         List<ProductDto> productList = new ArrayList<>();
 
         for (String item : productItems) {
-            String[] productInfo = item.split("x");
 
-            if (productInfo.length != 2) {
-                throw new DataValidationException("Ошибка парсинга товара");
+            if (!item.matches("\\d+x[a-zA-Z]+")) {
+                throw new DataValidationException("Товар должен быть в формате {quantity}x{product}");
             }
+
+            String[] productInfo = item.split("x");
 
             int quantity;
             try {
@@ -85,17 +94,17 @@ public class ConvertedOrderServiceImpl implements ConvertedOrderService {
     }
 
     private String prepareDate(RequestOrderDto orderDto) {
-        LocalDate currentTime = LocalDate.now();
+        LocalDate currentTime = LocalDate.now(clock);
         LocalDate shipBy = orderDto.deliveryDate().toLocalDate();
 
         if (shipBy.isBefore(currentTime)) {
             throw new DataValidationException("Дата не должна быть меньше текущей");
         }
 
-        LocalDate maxDate = currentTime.plusDays(MAX_SHIP_DAY);
+        LocalDate maxDate = currentTime.plusDays(maxShipDay);
 
         if (shipBy.isAfter(maxDate)) {
-            shipBy = LocalDate.from(currentTime.plusDays(MAX_SHIP_DAY).atStartOfDay());
+            shipBy = maxDate;
         }
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");

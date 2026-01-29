@@ -14,12 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("api/v1")
+@RequestMapping("api/v1/orders")
 public class OrderController {
     private final ConvertedOrderService orderService;
 
     @ResponseStatus(HttpStatus.OK)
-    @PostMapping("/convert-order")
+    @PostMapping("/convert")
     public ResponseConvertOrderDto convertOrder(@Valid @RequestBody RequestOrderDto orderDto) {
         return orderService.convertOrder(orderDto);
     }
